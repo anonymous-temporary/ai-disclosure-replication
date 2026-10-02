@@ -1,0 +1,4 @@
+__pycache__/
+01_raw_data/
+02_analysis/*/results/
+02_analysis/*/cache/
