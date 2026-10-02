@@ -13,6 +13,8 @@ import x04_match_scac_universe as x04
 
 RAW = lib.RAW
 Y0, Y1 = 2000, 2023
+TECH = ["ml", "evo", "nlp", "speech", "vision", "planning", "kr", "hardware"]
+TECH_COLS = [f"ai93_{k}" for k in TECH]
 
 def zcsv(path, **kw):
     z = zipfile.ZipFile(path); return pd.read_csv(z.open(z.namelist()[0]), **kw)
@@ -31,9 +33,10 @@ def main():
 
     print("AIPD ...", flush=True)
     ai = zcsv(RAW / "uspto_aipd" / "ai_model_predictions.csv.zip",
-              usecols=["doc_id", "flag_patent", "predict86_any_ai", "predict93_any_ai"], dtype={"doc_id": str})
-    ai = ai[ai.flag_patent == 1].rename(columns={"doc_id": "patent_id", "predict93_any_ai": "ai93", "predict86_any_ai": "ai86"})
-    pat = pat.merge(ai[["patent_id", "ai93", "ai86"]], on="patent_id", how="left").fillna({"ai93": 0, "ai86": 0})
+              usecols=["doc_id", "flag_patent", "predict86_any_ai", "predict93_any_ai"] + [f"predict93_{k}" for k in TECH], dtype={"doc_id": str})
+    ai = ai[ai.flag_patent == 1].rename(columns={"doc_id": "patent_id", "predict93_any_ai": "ai93", "predict86_any_ai": "ai86",
+                                                 **{f"predict93_{k}": f"ai93_{k}" for k in TECH}})
+    pat = pat.merge(ai[["patent_id", "ai93", "ai86"] + TECH_COLS], on="patent_id", how="left").fillna({c: 0 for c in ["ai93", "ai86"] + TECH_COLS})
 
     print("KPSS values + permno ...", flush=True)
     kz = zipfile.ZipFile(RAW / "kpss" / "KPSS_2025.zip")
@@ -89,7 +92,7 @@ def main():
     agree = L[L.cik_A.notna() & L.cik_C.notna()]
     print(f"  linked patents {len(L):,} to {L.cik.nunique():,} firms | routes {L.route.value_counts().to_dict()}")
     print(f"  audit: KPSS route and name route agree on {(agree.cik_A == agree.cik_C).mean():.1%} of {len(agree):,} doubly linked patents")
-    L[["patent_id", "cik", "route", "grant_year", "ai93", "ai86"] + [c for c in ("xi_real", "cites") if c in L.columns]].to_parquet(
+    L[["patent_id", "cik", "route", "grant_year", "ai93", "ai86"] + [c for c in ("xi_real", "cites") if c in L.columns] + TECH_COLS].to_parquet(
         lib.out("patent_firm_links.parquet"), index=False)
 
     xi = "xi_real" if "xi_real" in L.columns else None

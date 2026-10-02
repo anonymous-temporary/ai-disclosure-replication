@@ -14,6 +14,10 @@ PURCHASING = ["Retail", "Utilities", "Construction", "Construction machinery"]
 CLASSES = ["Specific capability claim", "Capability statement below three criteria", "AI risk only", "Other AI mention", "No AI language"]
 CRITERIA = [("d_action", "Action"), ("d_usecase", "Use case"), ("d_named", "Named product or unit"), ("d_quant", "Quantity"),
             ("d_timing", "Date or stage"), ("d_verifiable", "Verifiable detail"), ("is_C", "Three or more criteria")]
+RD_TIERS = ["None or not reported", "Under 5% of revenue", "5% of revenue or more", "Pre-revenue"]
+WF_TIERS = ["No AI workers", "Under .5% of employees", ".5% of employees or more"]
+TECH = [("hardware", "AI hardware"), ("planning", "Planning and control"), ("kr", "Knowledge processing"), ("nlp", "Natural language processing"),
+        ("vision", "Vision"), ("ml", "Machine learning"), ("speech", "Speech"), ("evo", "Evolutionary computation")]
 ROWS = []
 
 def fit(d, y, x, fe):
@@ -80,6 +84,33 @@ def main():
     assert (CL[CL.family == "10-K class"].groupby("industry")["count"].sum() == CL[CL.family == "10-K class"].groupby("industry").n.first()).all()
     assert int(CL[(CL.category == CRITERIA[-1][1]) & (CL.industry == "All sectors")]["count"].iloc[0]) == int(d.n_C.sum())
     CL.to_csv(core.out("capability_classification.csv"), index=False)
+
+    rd_ok = d.L1_RD_SALES0.notna()
+    rdc = pd.Series(np.select([(d.L1_RD_MISSING == 1) | (d.L1_RD_SALES0 == 0), d.L1_PRE_REVENUE == 1, d.L1_RD_SALES0 < .05],
+                              [RD_TIERS[0], RD_TIERS[3], RD_TIERS[1]], RD_TIERS[2]), index=d.index)
+    wf = d.L1_AI_WORKER
+    wfc = pd.Series(np.select([wf == 0, wf < .005], WF_TIERS[:2], WF_TIERS[2]), index=d.index)
+    last_sector = d.sort_values("fy").drop_duplicates("cik", keep="last").set_index("cik").industry
+    PL = pd.read_parquet(core.out("patent_firm_links.parquet"), columns=["patent_id", "cik", "grant_year", "ai93"] + [f"ai93_{k}" for k, _ in TECH])
+    PL = PL[(PL.ai93 == 1) & PL.grant_year.between(2014, 2023)].copy(); PL["industry"] = PL.cik.map(last_sector); PL = PL.dropna(subset=["industry"])
+    sc = pd.read_csv(core.RAW / "scac" / "scac_universe_match.csv")
+    sc = sc[sc.cik.isin(set(d.cik)) & pd.to_datetime(sc.filing_date, errors="coerce").dt.year.between(2013, 2025)]
+    rows_ = []
+    for ind in inds + ["All sectors"]:
+        sel = (d.industry == ind) if ind != "All sectors" else pd.Series(True, index=d.index)
+        for fam, ser, ok, cats in (("R&D intensity", rdc, rd_ok, RD_TIERS), ("AI workforce share", wfc, wf.notna(), WF_TIERS)):
+            k = ser[sel & ok]
+            for c in cats: rows_.append({"family": fam, "category": c, "industry": ind, "count": int((k == c).sum()), "n": len(k)})
+        pp = PL if ind == "All sectors" else PL[PL.industry == ind]
+        for col, lab in TECH: rows_.append({"family": "AI patent technology", "category": lab, "industry": ind, "count": int(pp[f"ai93_{col}"].sum()), "n": len(pp)})
+        ps = d.loc[sel, "PRIOR_SUIT"].dropna()
+        rows_.append({"family": "litigation", "category": "Sued in the prior three years", "industry": ind, "count": int(ps.sum()), "n": len(ps)})
+    for st in ("DISMISSED", "SETTLED", "ONGOING"):
+        rows_.append({"family": "litigation", "category": f"SCAC suit {st.lower()}", "industry": "All sectors", "count": int((sc.status == st).sum()), "n": len(sc)})
+    RC = pd.DataFrame(rows_); RC["share"] = RC["count"] / RC["n"]
+    for fam in ("R&D intensity", "AI workforce share"):
+        f_ = RC[RC.family == fam]; assert (f_.groupby("industry")["count"].sum() == f_.groupby("industry").n.first()).all(), fam
+    RC.to_csv(core.out("resource_classification.csv"), index=False)
 
     for res in RES:
         s = sample_for(d, res); x = list(dict.fromkeys(pe.RD + [res] + pe.CTRL))
