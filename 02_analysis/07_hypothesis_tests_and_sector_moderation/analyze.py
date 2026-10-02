@@ -11,6 +11,9 @@ warnings.filterwarnings("ignore")
 RES = {"L1_RD_SALES0": "R&D / revenue", "L1_LOG_AI_PAT_STOCK": "log AI patent stock"}
 IN_HOUSE = ["Software & IT services", "Computers & chips", "Aerospace & defense", "Auto manufacturing", "Pharma & biotech"]
 PURCHASING = ["Retail", "Utilities", "Construction", "Construction machinery"]
+CLASSES = ["Specific capability claim", "Capability statement below three criteria", "AI risk only", "Other AI mention", "No AI language"]
+CRITERIA = [("d_action", "Action"), ("d_usecase", "Use case"), ("d_named", "Named product or unit"), ("d_quant", "Quantity"),
+            ("d_timing", "Date or stage"), ("d_verifiable", "Verifiable detail"), ("is_C", "Three or more criteria")]
 ROWS = []
 
 def fit(d, y, x, fe):
@@ -61,6 +64,22 @@ def main():
     corr = dd_.corr(method="pearson")
     for k, v in enumerate(DVARS, start=1): desc[f"c{k}"] = corr[v].values
     desc.to_csv(core.out("descriptives.csv"), index=False)
+
+    cls = pd.Series(np.select([d.n_C > 0, d.n_cap > 0, (d.n_G > 0) | (d.n_F > 0), d.AI_ANY == 1], CLASSES[:4], CLASSES[4]), index=d.index)
+    S_ = pd.read_csv(core.out("passages_coded.csv"), usecols=["adsh", "is_ai", "is_cap", "is_C"] + [k for k, _ in CRITERIA[:-1]])
+    S_ = S_[(S_.is_ai == 1) & (S_.is_cap == 1)].merge(d[["adsh", "industry"]], on="adsh")
+    rows_ = []
+    for ind in inds + ["All sectors"]:
+        k10 = cls if ind == "All sectors" else cls[d.industry == ind]
+        for c in CLASSES:
+            rows_.append({"family": "10-K class", "category": c, "industry": ind, "count": int((k10 == c).sum()), "n": len(k10)})
+        st = S_ if ind == "All sectors" else S_[S_.industry == ind]
+        for col, lab in CRITERIA:
+            rows_.append({"family": "capability criterion", "category": lab, "industry": ind, "count": int(st[col].sum()), "n": len(st)})
+    CL = pd.DataFrame(rows_); CL["share"] = CL["count"] / CL["n"]
+    assert (CL[CL.family == "10-K class"].groupby("industry")["count"].sum() == CL[CL.family == "10-K class"].groupby("industry").n.first()).all()
+    assert int(CL[(CL.category == CRITERIA[-1][1]) & (CL.industry == "All sectors")]["count"].iloc[0]) == int(d.n_C.sum())
+    CL.to_csv(core.out("capability_classification.csv"), index=False)
 
     for res in RES:
         s = sample_for(d, res); x = list(dict.fromkeys(pe.RD + [res] + pe.CTRL))
