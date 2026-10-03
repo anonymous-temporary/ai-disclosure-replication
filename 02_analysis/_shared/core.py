@@ -22,7 +22,7 @@ FILE_HOME = {"filings.csv": "01", "passages.csv": "01",
              "capability_classification.csv": "07", "resource_classification.csv": "07",
              "supplementary_tests.csv": "08", "supplementary_tests.txt": "08", "subsamples.csv": "08", "subsamples.txt": "08",
              "subsamples_summary.csv": "08", "peer_lit_rate.csv": "08", "peer_suit_rate.csv": "08", "peer_suit_rate.txt": "08",
-             "rd_measures.csv": "08", "rd_measures.txt": "08"}
+             "rd_measures.csv": "08", "rd_measures.txt": "08", "sector_inference.csv": "08", "sector_inference.txt": "08"}
 
 def results(k):
     p = ANALYSIS / FOLDERS[k] / "results"; p.mkdir(parents=True, exist_ok=True); return p

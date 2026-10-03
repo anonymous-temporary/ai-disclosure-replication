@@ -20,12 +20,12 @@ TECH = [("hardware", "AI hardware"), ("planning", "Planning and control"), ("kr"
         ("vision", "Vision"), ("ml", "Machine learning"), ("speech", "Speech"), ("evo", "Evolutionary computation")]
 ROWS = []
 
-def fit(d, y, x, fe):
+def fit(d, y, x, fe, two_way=True):
     dd = d.dropna(subset=[y] + x + ["cik", "fy", "ind_year"]).copy(); x = [v for v in x if dd[v].nunique() > 1]
-    dd["firm"] = dd.cik; dd = dd.set_index(["cik", "fy"])
-    mod = (PanelOLS(dd[y], dd[x], entity_effects=True, time_effects=True, drop_absorbed=True, check_rank=False) if fe == "WITHIN"
-           else PanelOLS(dd[y], dd[x], other_effects=dd[["ind_year"]].astype("category"), drop_absorbed=True, check_rank=False))
-    r = mod.fit(cov_type="clustered", clusters=dd[["firm"]])
+    dd["firm"] = dd.cik; dd["sector_year"] = pd.factorize(dd.ind_year)[0]; dd = dd.set_index(["cik", "fy"])
+    mod = (PanelOLS(dd[y], dd[x], entity_effects=True, time_effects=True, drop_absorbed=True, check_rank=True) if fe == "WITHIN"
+           else PanelOLS(dd[y], dd[x], other_effects=dd[["ind_year"]].astype("category"), drop_absorbed=True, check_rank=True))
+    r = mod.fit(cov_type="clustered", clusters=dd[["firm", "sector_year"]] if two_way else dd[["firm"]])
     return r, len(dd), dd["firm"].nunique()
 
 def record(table, model, fe, y, r, n, firms, show):
@@ -171,7 +171,7 @@ def main():
         for fe in ("WITHIN", "BETWEEN"):
             for spec, terms in (("H1 slopes", [f"R_k{inds.index(i)}" for i in inds]),
                                 ("H3 slopes", [f"R_k{inds.index(i)}" for i in inds] + [f"L_k{inds.index(i)}" for i in inds] + [f"RL_k{inds.index(i)}" for i in inds])):
-                r, n, f = fit(s, "ln_C", terms + controls_for(res), fe)
+                r, n, f = fit(s, "ln_C", terms + controls_for(res), fe, two_way=False)
                 for ind in inds:
                     g = s[s.industry == ind]; k = f"k{inds.index(ind)}"
                     for term, kind in ((f"R_{k}", "slope"), (f"RL_{k}", "x suit rate")):

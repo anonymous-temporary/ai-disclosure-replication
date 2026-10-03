@@ -41,7 +41,7 @@ The study used the versions of these files available in September 2026; the publ
 6. `02_analysis/05_litigation_exposure/b2_litigation.py`.
 7. `02_analysis/06_panel_assembly/c1_panel.py`.
 8. `02_analysis/07_hypothesis_tests_and_sector_moderation/analyze.py`: the estimates of the main tables and figures.
-9. `02_analysis/08_robustness/`: `peer_suit_rate.py`, `rd_measures.py`, `subsamples.py` and `supplementary_tests.py`, in any order.
+9. `02_analysis/08_robustness/`: `peer_suit_rate.py`, `rd_measures.py`, `sector_inference.py` (the key estimates under firm, two-way and sector clustering, and the wild cluster bootstrap by sector), `subsamples.py` and `supplementary_tests.py`, in any order after step 8.
 
 ## Derived data in `data/`
 
