@@ -35,8 +35,8 @@ The study used the versions of these files available in September 2026; the publ
 
 1. `00_code/`: `s01_fetch_sec_metadata.py`, `s02_build_universe.py`, `s03_download_filings.py`, `s03b_fetch_financials.py`, `s03c_fetch_financials_extra.py`, `x01_scrape_scac_cases.py`, `x04_match_scac_universe.py`, `x05_fetch_public_files.py`, `x08_fetch_wrds.py`.
 2. `02_analysis/01_ai_sentence_extraction/a1_passages.py`: candidate AI sentences from Items 1 to 7A of every 10-K.
-3. `02_analysis/02_llm_coding/a3_code_passages.py`: the three coders, Qwen2.5-7B, Ministral-8B and Phi-4, with 4-bit weights and greedy decoding on one CUDA GPU with 16 GB of memory (model weights from Hugging Face).
-4. `02_analysis/03_disclosure_measures/a4_disclosure_vars.py`: majority labels, the 74 corrections in `audit_corrections.csv`, and the measures C, G and F per 10-K.
+3. `02_analysis/02_llm_coding/a3_code_passages.py`: three of the four coders, Qwen2.5-7B, Ministral-8B and Phi-4, with 4-bit weights and greedy decoding on one CUDA GPU with 16 GB of memory (model weights from Hugging Face). The fourth coder, Claude Sonnet 5.5, coded the same sentences with the instructions in `02_analysis/02_llm_coding/coding_instructions.txt`; its replies are in `data/codes_sonnet.csv.gz`.
+4. `02_analysis/03_disclosure_measures/a4_disclosure_vars.py`: the four coders’ vote on the type of each sentence, the specificity criteria and the kind of risk from Claude Sonnet 5.5, the 74 corrections in `audit_corrections.csv`, and the measures C, G and F per 10-K.
 5. `02_analysis/04_technological_resources/`: `b3_gvkey_cik.py`, then `b1_fundamentals.py` and `b4_patents.py`.
 6. `02_analysis/05_litigation_exposure/b2_litigation.py`.
 7. `02_analysis/06_panel_assembly/c1_panel.py`.
@@ -50,8 +50,9 @@ The study used the versions of these files available in September 2026; the publ
 | `filings.csv.gz` | one row per 10-K (22,780 filings of 3,778 firms): word count, AI term counts, item segmentation flag | `a1` | `02_analysis/01_ai_sentence_extraction/results/filings.csv` |
 | `passages.csv.gz` | the 72,681 candidate AI sentences, each with the sentence before and after | `a1` | `02_analysis/01_ai_sentence_extraction/results/passages.csv` |
 | `codes_qwen.csv.gz`, `codes_ministral.csv.gz`, `codes_phi4.csv.gz` | each coder’s reply to every sentence, raw and parsed | `a3` | `02_analysis/02_llm_coding/cache/codes_<model>.csv` |
-| `passages_coded.csv.gz` | every sentence with its majority labels after the corrections; 66,928 sentences about AI, 3,021 specific capability claims | `a4` | an output, for reading |
+| `codes_sonnet.csv.gz` | Claude Sonnet 5.5’s reply to every sentence, raw and parsed | step 3 | `02_analysis/02_llm_coding/results/codes_sonnet.csv` |
+| `passages_coded.csv.gz` | every sentence with its final labels after the corrections; 70,599 sentences about AI, 11,208 specific capability claims | `a4` | an output, for reading |
 | `disclosure_firm_year.csv.gz` | the counts and the measures C, G and F per 10-K, per 10,000 words | `a4` | an output, for reading |
 | `scac_match_manual.csv` | accept or reject decisions, with the CIK, for the 609 near-miss name matches `x04` lists for review | review of the `x04` list | `01_raw_data/scac/scac_match_manual.csv` |
 
-With the first five files decompressed to the locations shown, the pipeline can start at step 4 without the 10-K texts or a GPU; steps 5 to 7 still need the inputs listed under Sources.
+With the first six files decompressed to the locations shown, the pipeline can start at step 4 without the 10-K texts or a GPU; steps 5 to 7 still need the inputs listed under Sources.
