@@ -12,14 +12,17 @@ warnings.filterwarnings("ignore")
 RES = {"L1_RD_SALES0": "R&D / revenue", "L1_LOG_AI_PAT_STOCK": "log AI patent stock", "L1_AI_WORKER": "AI-worker share"}
 WEBB = np.array([-np.sqrt(1.5), -1.0, -np.sqrt(.5), np.sqrt(.5), 1.0, np.sqrt(1.5)])
 RADEMACHER = np.array([-1.0, 1.0])
-SPECS = [("H1", "T2", "H1 L1_RD_SALES0", "L1_RD_SALES0", [], None, "L1_RD_SALES0"),
-         ("H1", "T2", "H1 L1_LOG_AI_PAT_STOCK", "L1_LOG_AI_PAT_STOCK", [], None, "L1_LOG_AI_PAT_STOCK"),
-         ("H1", "T2V", "H1 L1_AI_WORKER", "L1_AI_WORKER", [], None, "L1_AI_WORKER"),
-         ("H2", "T3", "H2 L1_LOG_AI_PAT_STOCK x INTERNAL_DEV", "L1_LOG_AI_PAT_STOCK", ["INTERNAL_DEV"], ("RxM", "INTERNAL_DEV"), "RxM"),
-         ("H2", "T3", "H2 L1_RD_SALES0 x HIGH_AIIE", "L1_RD_SALES0", ["HIGH_AIIE"], ("RxM", "HIGH_AIIE"), "RxM"),
-         ("H3", "T4", "H3 L1_RD_SALES0 baseline", "L1_RD_SALES0", ["IND_LIT_RATE"], ("RxL", "IND_LIT_RATE"), "RxL"),
-         ("H3", "T4", "H3 L1_LOG_AI_PAT_STOCK baseline", "L1_LOG_AI_PAT_STOCK", ["IND_LIT_RATE"], ("RxL", "IND_LIT_RATE"), "RxL")]
-TERM_LABEL = {"RxM": "resource x sector moderator", "RxL": "resource x litigation exposure"}
+MODEL_M = "H2 L1_LOG_AI_PAT_STOCK x AI_MODE"; PAT = "L1_LOG_AI_PAT_STOCK"
+SPECS = [("H1", "T2", "H1 L1_RD_SALES0", "L1_RD_SALES0", [], [], "L1_RD_SALES0", None, ""),
+         ("H1", "T2", "H1 L1_LOG_AI_PAT_STOCK", PAT, [], [], PAT, None, ""),
+         ("H1", "T2V", "H1 L1_AI_WORKER", "L1_AI_WORKER", [], [], "L1_AI_WORKER", None, ""),
+         ("H2", "T3", MODEL_M, PAT, ["M_P", "M_A"], [("RxP", "M_P"), ("RxA", "M_A")], "RxP", "contrast producer minus co-developer", "producers minus co-developers"),
+         ("H2", "T3", MODEL_M, PAT, ["M_P", "M_C"], [("RxP", "M_P"), ("RxC", "M_C")], "RxC", "contrast co-developer minus adopter", "co-developers minus adopters"),
+         ("H2", "T3", MODEL_M, PAT, ["M_P", "M_C"], [("RxP", "M_P"), ("RxC", "M_C")], "RxP", "contrast producer minus adopter", "producers minus adopters"),
+         ("H2", "T3", "H2 L1_RD_SALES0 x HIGH_AIIE", "L1_RD_SALES0", ["HIGH_AIIE"], [("RxM", "HIGH_AIIE")], "RxM", None, ""),
+         ("H3", "T4", "H3 L1_RD_SALES0 baseline", "L1_RD_SALES0", ["IND_LIT_RATE"], [("RxL", "IND_LIT_RATE")], "RxL", None, ""),
+         ("H3", "T4", "H3 L1_LOG_AI_PAT_STOCK baseline", PAT, ["IND_LIT_RATE"], [("RxL", "IND_LIT_RATE")], "RxL", None, "")]
+TERM_LABEL = {"RxM": "resource x sector moderator", "RxL": "resource x litigation exposure", "RxP": "resource x production mode", "RxC": "resource x production mode"}
 
 
 def group_demean(codes):
@@ -53,12 +56,13 @@ def main():
     d = m[(m.is_operating == 1) & m.fy.between(2015, 2025) & (m.coded == 1)].copy()
     d["ind_year"] = d.industry + "_" + d.fy.astype(int).astype(str)
     d["ln_C"] = np.log1p(d["C"])
+    for k, v in (("M_P", "producer"), ("M_C", "co-developer"), ("M_A", "adopter")): d[k] = (d.AI_MODE == v).astype(float)
     ref = pd.read_csv(core.out("models.csv"))
     rows, notes = [], []
-    for hyp, table, model, res, extra, prod, term in SPECS:
+    for hyp, table, model, res, extra, prod, term, ref_term, contrast in SPECS:
         s = (d[d.fy <= 2024] if "PAT" in res else d).copy()
-        if prod: s[prod[0]] = s[res] * s[prod[1]]
-        base = list(dict.fromkeys(pe.RD + [res] + extra + ([prod[0]] if prod else []) + pe.CTRL))
+        for nm, mod_ in prod: s[nm] = s[res] * s[mod_]
+        base = list(dict.fromkeys(pe.RD + [res] + extra + [nm for nm, _ in prod] + pe.CTRL))
         for fe in ("WITHIN", "BETWEEN"):
             dd = s.dropna(subset=["ln_C"] + base + ["cik", "fy", "ind_year"]).copy(); x = [v for v in base if dd[v].nunique() > 1]
             dd["firm"] = dd.cik; dd["sector"] = pd.factorize(dd.industry)[0]; dd["sector_year"] = pd.factorize(dd.ind_year)[0]
@@ -69,7 +73,7 @@ def main():
             r_f = mod.fit(cov_type="clustered", clusters=dd[["firm"]])
             r_2 = mod.fit(cov_type="clustered", clusters=dd[["firm", "sector_year"]])
             r_s = mod.fit(cov_type="clustered", clusters=dd[["sector"]])
-            g = ref[(ref.table == table) & (ref.model == model) & (ref.fe == fe) & (ref.y == "ln_C") & (ref.term == term)].iloc[0]
+            g = ref[(ref.table == table) & (ref.model == model) & (ref.fe == fe) & (ref.y == "ln_C") & (ref.term == (ref_term or term))].iloc[0]
             assert abs(r_2.params[term] - g.coef) < 1e-9 and abs(r_2.std_errors[term] - g.se) < 1e-9, (model, fe, "differs from the main model estimates")
 
             names = list(r_f.params.index); k = names.index(term); n, p = len(dd), len(names)
@@ -91,7 +95,7 @@ def main():
             p_webb, n_webb = wcr_pvalue(A, C, t_obs, WEBB)
             p_rad, n_rad = wcr_pvalue(A, C, t_obs, RADEMACHER)
             se_s = r_s.std_errors[term]
-            rows.append({"hypothesis": hyp, "resource": RES[res], "design": fe, "term": TERM_LABEL.get(term, "resource"), "coef": b[k],
+            rows.append({"hypothesis": hyp, "resource": RES[res], "design": fe, "term": TERM_LABEL.get(term, "resource"), "contrast": contrast, "coef": b[k],
                          "se_firm": r_f.std_errors[term], "p_firm": r_f.pvalues[term],
                          "se_firm_sector_year": r_2.std_errors[term], "p_firm_sector_year": r_2.pvalues[term],
                          "se_sector": se_s, "p_sector_t8": 2 * stats.t.sf(abs(b[k] / se_s), G - 1),
@@ -102,7 +106,7 @@ def main():
                          f"firms switching sector: {switchers}")
     R = pd.DataFrame(rows)
     R.to_csv(core.out("sector_inference.csv"), index=False)
-    show = R[["hypothesis", "resource", "term", "design", "coef", "se_firm", "p_firm", "se_firm_sector_year", "p_firm_sector_year",
+    show = R[["hypothesis", "resource", "term", "contrast", "design", "coef", "se_firm", "p_firm", "se_firm_sector_year", "p_firm_sector_year",
               "se_sector", "p_sector_t8", "p_wcr_webb", "p_wcr_rademacher", "n", "sector_years"]]
     txt = ("Key estimates under sector-level inference (y = ln(1 + C))\n" + show.round(4).to_string(index=False) +
            "\n\nChecks: coefficients and two-way SEs equal the main model estimates; the Frisch-Waugh-Lovell replica equals PanelOLS;"

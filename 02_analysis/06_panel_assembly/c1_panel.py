@@ -34,6 +34,8 @@ def main():
     m["naics4"] = m.naics.astype("string").str[:4]
     m = m.merge(aiie.groupby("naics4").AIIE.mean().reset_index(), on="naics4", how="left")
     m["INTERNAL_DEV"] = m.industry.isin(INTERNAL).astype(int)
+    m["AI_MODE"] = m.industry.map(core.AI_MODE)
+    m["MODE_PRODUCER"] = (m.AI_MODE == "producer").astype(int); m["MODE_CODEV"] = (m.AI_MODE == "co-developer").astype(int)
     m["HIGH_AIIE"] = (m.AIIE > m.AIIE.median()).astype(int).where(m.AIIE.notna())
 
     m["LOG_WORDS"] = np.log(m.n_words.where(m.n_words > 0))

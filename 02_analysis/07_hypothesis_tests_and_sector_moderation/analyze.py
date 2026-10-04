@@ -9,8 +9,12 @@ import panel_est as pe
 warnings.filterwarnings("ignore")
 
 RES = {"L1_RD_SALES0": "R&D / revenue", "L1_LOG_AI_PAT_STOCK": "log AI patent stock"}
-IN_HOUSE = ["Software & IT services", "Computers & chips", "Aerospace & defense", "Auto manufacturing", "Pharma & biotech"]
-PURCHASING = ["Retail", "Utilities", "Construction", "Construction machinery"]
+MODE = core.AI_MODE
+MKEY = {"producer": "P", "co-developer": "C", "adopter": "A"}
+ALT_MODES = {"as in the paper": MODE,
+             "pharma as adopter": dict(MODE, **{"Pharma & biotech": "adopter"}),
+             "construction machinery as adopter": dict(MODE, **{"Construction machinery": "adopter"}),
+             "two groups (build, buy)": {k: ("adopter" if k in ("Retail", "Utilities", "Construction", "Construction machinery") else "producer") for k in MODE}}
 CLASSES = ["Specific capability claim", "Capability statement below three criteria", "AI risk only", "Other AI mention", "No AI language"]
 CRITERIA = [("d_action", "Action"), ("d_usecase", "Use case"), ("d_named", "Named product or unit"), ("d_quant", "Quantity"),
             ("d_timing", "Date or stage"), ("d_verifiable", "Verifiable detail"), ("is_C", "Three or more criteria")]
@@ -40,27 +44,47 @@ def controls_for(res):
 def sample_for(d, res):
     return (d[d.fy <= 2024] if "PAT" in res else d).copy()
 
+def mode_fits(s, res, assign, label):
+    ms = [k for k in core.MODES if k in set(assign.values())]; s = s.copy(); g = s.industry.map(assign); out = []
+    for k in ms: s[f"M_{MKEY[k]}"] = (g == k).astype(float); s[f"Rx{MKEY[k]}"] = s[res] * s[f"M_{MKEY[k]}"]
+    for fe in ("WITHIN", "BETWEEN"):
+        for ref in ms:
+            oth = [k for k in ms if k != ref]
+            x = list(dict.fromkeys([res] + [f"M_{MKEY[k]}" for k in oth] + [f"Rx{MKEY[k]}" for k in oth] + controls_for(res)))
+            r, n, f = fit(s, "ln_C", x, fe)
+            holders = int(s.loc[(g == ref) & (s[res] > 0), "cik"].nunique())
+            out.append({"resource": RES_ALL[res], "assignment": label, "fe": fe, "kind": "slope", "label": ref, "coef": r.params[res], "se": r.std_errors[res],
+                        "t": r.tstats[res], "p": r.pvalues[res], "n": n, "firms": f, "firms_with_resource": holders, "r2_within": r.rsquared})
+            for k in oth:
+                if ms.index(k) < ms.index(ref):
+                    t = f"Rx{MKEY[k]}"
+                    out.append({"resource": RES_ALL[res], "assignment": label, "fe": fe, "kind": "contrast", "label": f"{k} minus {ref}", "coef": r.params[t],
+                                "se": r.std_errors[t], "t": r.tstats[t], "p": r.pvalues[t], "n": n, "firms": f, "firms_with_resource": np.nan, "r2_within": r.rsquared})
+    return out
+
+RES_ALL = {"L1_RD_SALES0": "R&D / revenue", "L1_LOG_AI_PAT_STOCK": "log AI patent stock", "L1_AI_WORKER": "AI-worker share"}
+
 def main():
     m = pd.read_parquet(core.out("panel.parquet"))
     d = m[(m.is_operating == 1) & m.fy.between(2015, 2025) & (m.coded == 1)].copy()
     d["ind_year"] = d.industry + "_" + d.fy.astype(int).astype(str)
     for c in ("C", "G", "F"): d["ln_" + c] = np.log1p(d[c])
     d["PHARMA"] = (d.industry == "Pharma & biotech").astype(int)
-    inds = IN_HOUSE + PURCHASING
+    inds = core.SECTORS
     assert set(d.industry.unique()) == set(inds), sorted(d.industry.unique())
 
     t1 = []
     for ind in inds + ["All"]:
         g = d if ind == "All" else d[d.industry == ind]
-        t1.append({"industry": ind, "mode": "" if ind == "All" else ("in-house" if ind in IN_HOUSE else "purchasing"), "firms": g.cik.nunique(), "firm_years": len(g),
+        t1.append({"industry": ind, "mode": "" if ind == "All" else MODE[ind], "firms": g.cik.nunique(), "firm_years": len(g),
                    "any_C": (g.C > 0).mean(), "any_G": (g.G > 0).mean(), "any_F": (g.F > 0).mean(), "mean_C": g.C.mean(),
                    "rd_rev_median": g.L1_RD_SALES0.median(), "rd_reported": 1 - g.L1_RD_MISSING.mean(),
                    "rd_positive": g.L1_RD_SALES0.dropna().gt(0).mean(), "rd_at_cap": g.L1_RD_SALES0.dropna().ge(1).mean(),
-                   "ai_pat_any": g.L1_AI_PAT_STOCK.dropna().gt(0).mean(), "high_aiie": g.HIGH_AIIE.dropna().mean(), "aiie_coverage": g.HIGH_AIIE.notna().mean(),
+                   "ai_pat_any": g.L1_AI_PAT_STOCK.dropna().gt(0).mean(), "ai_worker_half": g.L1_AI_WORKER.dropna().ge(.005).mean(), "high_aiie": g.HIGH_AIIE.dropna().mean(), "aiie_coverage": g.HIGH_AIIE.notna().mean(),
                    "suit_rate_mean": g.IND_LIT_RATE.mean(), "prior_suit": g.PRIOR_SUIT.mean(), "aiie": g.AIIE.mean()})
     pd.DataFrame(t1).to_csv(core.out("sample_by_industry.csv"), index=False)
 
-    DVARS = ["C", "G", "F", "L1_RD_SALES0", "L1_LOG_AI_PAT_STOCK", "L1_AI_WORKER", "HIGH_AIIE", "INTERNAL_DEV",
+    DVARS = ["C", "G", "F", "L1_RD_SALES0", "L1_LOG_AI_PAT_STOCK", "L1_AI_WORKER", "HIGH_AIIE", "MODE_PRODUCER", "MODE_CODEV",
              "IND_LIT_RATE"] + pe.CTRL
     dd_ = d[DVARS]
     desc = pd.DataFrame({"var": DVARS, "n": dd_.notna().sum().values, "mean": dd_.mean().values, "sd": dd_.std().values,
@@ -121,7 +145,33 @@ def main():
         for fe in ("WITHIN", "BETWEEN"):
             r, n, f = fit(d, y, list(dict.fromkeys(pe.RD + ["L1_AI_WORKER"] + pe.CTRL)), fe); record("T2V", "H1 L1_AI_WORKER", fe, y, r, n, f, ["L1_AI_WORKER"])
 
-    for res, mode in (("L1_LOG_AI_PAT_STOCK", "INTERNAL_DEV"), ("L1_RD_SALES0", "HIGH_AIIE")):
+    MROWS = []
+    pat = mode_fits(sample_for(d, "L1_LOG_AI_PAT_STOCK"), "L1_LOG_AI_PAT_STOCK", MODE, "as in the paper"); MROWS += pat
+    for q in pat:
+        ROWS.append({"table": "T3", "model": "H2 L1_LOG_AI_PAT_STOCK x AI_MODE", "fe": q["fe"], "y": "ln_C", "term": f"{q['kind']} {q['label']}", "coef": q["coef"],
+                     "se": q["se"], "t": q["t"], "p": q["p"], "n": q["n"], "firms": q["firms"], "r2_within": q["r2_within"]})
+    for res in ("L1_RD_SALES0", "L1_AI_WORKER"): MROWS += mode_fits(sample_for(d, res), res, MODE, "as in the paper")
+    for lab_, asg in list(ALT_MODES.items())[1:]: MROWS += mode_fits(sample_for(d, "L1_LOG_AI_PAT_STOCK"), "L1_LOG_AI_PAT_STOCK", asg, lab_)
+    s = sample_for(d, "L1_LOG_AI_PAT_STOCK"); s["TREND"] = s.fy - 2015; res = "L1_LOG_AI_PAT_STOCK"
+    for k in core.MODES:
+        s[f"M_{MKEY[k]}"] = (s.AI_MODE == k).astype(float); s[f"R_{MKEY[k]}"] = s[res] * s[f"M_{MKEY[k]}"]; s[f"RT_{MKEY[k]}"] = s[f"R_{MKEY[k]}"] * s.TREND
+    for fe in ("WITHIN", "BETWEEN"):
+        x = [f"R_{MKEY[k]}" for k in core.MODES] + [f"RT_{MKEY[k]}" for k in core.MODES] + ["M_P", "M_C"] + controls_for(res)
+        r, n, f = fit(s, "ln_C", list(dict.fromkeys(x)), fe); last = int(s.TREND.max())
+        for k in core.MODES:
+            a_, b_ = f"R_{MKEY[k]}", f"RT_{MKEY[k]}"; e = r.params[a_] + last * r.params[b_]
+            se = np.sqrt(r.cov.loc[a_, a_] + last ** 2 * r.cov.loc[b_, b_] + 2 * last * r.cov.loc[a_, b_])
+            for kind, c_, se_, p_ in (("slope in FY2015", r.params[a_], r.std_errors[a_], r.pvalues[a_]), ("change per year", r.params[b_], r.std_errors[b_], r.pvalues[b_]),
+                                      (f"slope in FY{2015 + last}", e, se, 2 * stats.t.sf(abs(e / se), r.df_resid))):
+                MROWS.append({"resource": RES_ALL[res], "assignment": "as in the paper", "fe": fe, "kind": kind, "label": k, "coef": c_, "se": se_, "t": c_ / se_, "p": p_,
+                              "n": n, "firms": f, "firms_with_resource": np.nan, "r2_within": r.rsquared})
+    pd.DataFrame(MROWS).to_csv(core.out("mode_models.csv"), index=False)
+    wv = []
+    for v in ("ln_C", "L1_LOG_AI_PAT_STOCK", "L1_RD_SALES0", "L1_AI_WORKER"):
+        z = d[["cik", v]].dropna(); wv.append({"variable": v, "within_share": (z[v] - z.groupby("cik")[v].transform("mean")).var() / z[v].var(), "firms": z.cik.nunique(), "n": len(z)})
+    pd.DataFrame(wv).to_csv(core.out("within_variance.csv"), index=False)
+
+    for res, mode in (("L1_RD_SALES0", "HIGH_AIIE"),):
         s = sample_for(d, res); s["RxM"] = s[res] * s[mode]
         for fe in ("WITHIN", "BETWEEN"):
             r, n, f = fit(s, "ln_C", list(dict.fromkeys(pe.RD + [res, mode, "RxM"] + pe.CTRL)), fe)
@@ -176,7 +226,7 @@ def main():
                     g = s[s.industry == ind]; k = f"k{inds.index(ind)}"
                     for term, kind in ((f"R_{k}", "slope"), (f"RL_{k}", "x suit rate")):
                         if term not in r.params.index: continue
-                        slopes.append({"resource": lab, "fe": fe, "spec": spec, "industry": ind, "mode": "in-house" if ind in IN_HOUSE else "purchasing",
+                        slopes.append({"resource": lab, "fe": fe, "spec": spec, "industry": ind, "mode": MODE[ind],
                                        "kind": kind, "coef": r.params[term], "se": r.std_errors[term], "t": r.tstats[term], "p": r.pvalues[term],
                                        "per_sd_suit": r.params[term] * sd_L if kind == "x suit rate" else np.nan,
                                        "se_per_sd_suit": r.std_errors[term] * sd_L if kind == "x suit rate" else np.nan,
@@ -189,12 +239,29 @@ def main():
                     Rm = np.hstack([np.ones((len(names) - 1, 1)), -np.eye(len(names) - 1)])
                     W = float((Rm @ b) @ np.linalg.pinv(Rm @ V @ Rm.T) @ (Rm @ b)); df = len(names) - 1
                     walds.append({"resource": lab, "fe": fe, "spec": spec, "kind": kind, "industries": len(names), "chi2": W, "df": df, "p": stats.chi2.sf(W, df)})
+    res = "L1_LOG_AI_PAT_STOCK"; s = sample_for(d, res).dropna(subset=[res, "IND_LIT_RATE", "ln_C"] + controls_for(res)).copy(); tv = []
+    s["POST"] = (s.fy >= 2022).astype(float); s["TREND"] = s.fy - 2015
+    for ind in inds:
+        D = (s.industry == ind).astype(float); k = f"k{inds.index(ind)}"
+        s[f"R_{k}"] = s[res] * D; s[f"L_{k}"] = s.IND_LIT_RATE * D; s[f"RL_{k}"] = s[res] * s.IND_LIT_RATE * D
+        s[f"RP_{k}"] = s[f"R_{k}"] * s.POST; s[f"RT_{k}"] = s[f"R_{k}"] * s.TREND
+    K = [f"k{i}" for i in range(len(inds))]; base = [f"R_{k}" for k in K] + [f"L_{k}" for k in K] + [f"RL_{k}" for k in K]
+    for spec, terms, ss in (("as in the main table", base, s), ("slope shift from fiscal year 2022", base + [f"RP_{k}" for k in K], s),
+                            ("slope trend by year", base + [f"RT_{k}" for k in K], s), ("fiscal years 2015 to 2021", base, s[s.fy <= 2021])):
+        for fe in ("WITHIN", "BETWEEN"):
+            r, n, f = fit(ss, "ln_C", terms + controls_for(res), fe, two_way=False)
+            for ind in inds:
+                t = f"RL_k{inds.index(ind)}"
+                if t in r.params.index:
+                    tv.append({"spec": spec, "fe": fe, "industry": ind, "coef": r.params[t], "se": r.std_errors[t], "t": r.tstats[t], "p": r.pvalues[t], "n_model": n,
+                               "firms_with_resource": int(ss.loc[(ss.industry == ind) & (ss[res] > 0), "cik"].nunique())})
+    pd.DataFrame(tv).to_csv(core.out("sector_slopes_time.csv"), index=False)
     pd.DataFrame(MEF).to_csv(core.out("marginal_effects.csv"), index=False)
     pd.concat(SUITS).to_csv(core.out("suit_rate_distribution.csv"), index=False)
     dd = d.copy(); dd["any_C"], dd["any_G"], dd["any_F"] = (dd.n_C > 0).astype(int), (dd.n_G > 0).astype(int), (dd.n_F > 0).astype(int)
     grp = pd.concat([dd, dd.assign(industry="All sectors")]).groupby(["industry", "fy"])
     DF = grp.agg(n=("adsh", "size"), any_C=("any_C", "mean"), any_G=("any_G", "mean"), any_F=("any_F", "mean"), AI_ANY=("AI_ANY", "mean")).reset_index()
-    DF["mode"] = np.where(DF.industry.isin(IN_HOUSE), "in-house", np.where(DF.industry == "All sectors", "", "purchasing"))
+    DF["mode"] = DF.industry.map(MODE).fillna("")
     DF.to_csv(core.out("disclosure_diffusion.csv"), index=False)
     pd.DataFrame(slopes).to_csv(core.out("sector_slopes.csv"), index=False)
     pd.DataFrame(walds).to_csv(core.out("wald.csv"), index=False)

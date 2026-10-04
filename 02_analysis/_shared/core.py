@@ -20,6 +20,7 @@ FILE_HOME = {"filings.csv": "01", "passages.csv": "01",
              "models.csv": "07", "sector_slopes.csv": "07", "wald.csv": "07", "sample_by_industry.csv": "07", "descriptives.csv": "07",
              "aiie_coverage.csv": "07", "marginal_effects.csv": "07", "suit_rate_distribution.csv": "07", "disclosure_diffusion.csv": "07",
              "capability_classification.csv": "07", "resource_classification.csv": "07",
+             "mode_models.csv": "07", "sector_slopes_time.csv": "07", "within_variance.csv": "07",
              "supplementary_tests.csv": "08", "supplementary_tests.txt": "08", "subsamples.csv": "08", "subsamples.txt": "08",
              "subsamples_summary.csv": "08", "peer_lit_rate.csv": "08", "peer_suit_rate.csv": "08", "peer_suit_rate.txt": "08",
              "rd_measures.csv": "08", "rd_measures.txt": "08", "sector_inference.csv": "08", "sector_inference.txt": "08"}
@@ -37,6 +38,12 @@ def cache(k):
 
 MIN_ASSETS = 10e6
 MIN_WORDS = 5000
+
+AI_MODE = {"Software & IT services": "producer", "Computers & chips": "producer",
+           "Aerospace & defense": "co-developer", "Auto manufacturing": "co-developer", "Pharma & biotech": "co-developer",
+           "Construction machinery": "co-developer", "Retail": "adopter", "Utilities": "adopter", "Construction": "adopter"}
+MODES = ["producer", "co-developer", "adopter"]
+SECTORS = [s for k in MODES for s, v in AI_MODE.items() if v == k]
 
 
 def ensure_dirs():
