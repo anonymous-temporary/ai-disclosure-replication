@@ -13,6 +13,7 @@ def main():
     for c in ("C", "G", "F"): d["ln_" + c] = np.log1p(d[c])
     d["SIZE_T"] = pd.qcut(d.L1_SIZE, 3, labels=["small", "mid", "large"])
     samples = {"all": d, "no pharma": d[d.industry != "Pharma & biotech"], "no software": d[d.industry != "Software & IT services"],
+               "no chips": d[d.industry != "Computers & chips"], "no software, no chips": d[~d.industry.isin(["Software & IT services", "Computers & chips"])],
                "post-ChatGPT FY>=2023": d[d.fy >= 2023], "pre-ChatGPT FY<=2022": d[d.fy <= 2022], "large firms": d[d.SIZE_T == "large"], "small firms": d[d.SIZE_T == "small"]}
     for name, s in samples.items():
         c2.TXT.append(f"\n\n################ SAMPLE: {name}  ({len(s):,} firm-years)\n")
@@ -21,6 +22,9 @@ def main():
             sp = s[s.fy <= 2024]
             c2.est(sp, "ln_C", c2.RD + ["L1_LOG_AI_PAT_STOCK"] + c2.CTRL, fe, f"[{name}] H1 AI patents -> C", show=["L1_LOG_AI_PAT_STOCK"])
             c2.est(sp, "ln_G", c2.RD + ["L1_LOG_AI_PAT_STOCK"] + c2.CTRL, fe, f"[{name}] RQ1 AI patents -> G", show=["L1_LOG_AI_PAT_STOCK"])
+            sw = s[s.fy <= 2022]
+            if sw.L1_AI_WORKER.notna().sum() > 500:
+                c2.est(sw, "ln_C", c2.RD + ["L1_AI_WORKER"] + c2.CTRL, fe, f"[{name}] H1 AI workers -> C", show=["L1_AI_WORKER"])
             dd = sp.copy(); dd["RxM"] = dd.L1_LOG_AI_PAT_STOCK * dd.INTERNAL_DEV
             c2.est(dd, "ln_C", c2.RD + ["L1_LOG_AI_PAT_STOCK", "INTERNAL_DEV", "RxM"] + c2.CTRL, fe, f"[{name}] H2 AI patents x in-house", show=["RxM"])
             dd = s.copy(); dd["RxM"] = dd.L1_RD_SALES0 * dd.HIGH_AIIE
@@ -31,7 +35,7 @@ def main():
             c2.est(dd, "ln_C", c2.RD + ["L1_LOG_AI_PAT_STOCK", "IND_LIT_RATE", "RxL"] + c2.CTRL, fe, f"[{name}] H3b AI patents x industry suit rate", show=["RxL"])
     R = pd.DataFrame(c2.ROWS); R.to_csv(core.out("subsamples.csv"), index=False)
     (core.out("subsamples.txt")).write_text("".join(c2.TXT), encoding="utf-8")
-    piv = R[R.term.isin(["L1_RD_SALES0", "L1_LOG_AI_PAT_STOCK", "RxM", "RxL"])].copy()
+    piv = R[R.term.isin(["L1_RD_SALES0", "L1_LOG_AI_PAT_STOCK", "L1_AI_WORKER", "RxM", "RxL"])].copy()
     piv["test"] = piv.model.str.extract(r"\] (.*)")[0]; piv["sample"] = piv.model.str.extract(r"\[(.*?)\]")[0]
     tab = piv.pivot_table(index=["test", "fe"], columns="sample", values="t").round(1)
     tab.to_csv(core.out("subsamples_summary.csv")); print(tab.to_string())
