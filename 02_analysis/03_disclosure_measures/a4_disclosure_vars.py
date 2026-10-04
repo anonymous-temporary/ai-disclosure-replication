@@ -68,6 +68,15 @@ def main():
         share = np.where(fin, out[col], len(models) - out[col])
         for k in range(2, len(models) + 1):
             agr.append({"field": q, "pair": f"final label shared by at least {k} coders", "n": len(out), "agreement": round(float((share >= k).mean()), 4)})
+    capF, riskF = out.is_cap == 1, (out.is_G == 1) | (out.is_F == 1)
+    dg = {m: pd.DataFrame({k: pd.to_numeric(pv["detail"][m].str[i], errors="coerce").fillna(0).astype(int) * cap_c[m] for i, k in enumerate(KEYS)}) for m in models}
+    fine = {"three or more criteria": (capF, sum(((dg[m].sum(axis=1) >= SPEC_MIN) == (out.is_C == 1)).astype(int) for m in models)),
+            "existing or intended capability": (capF, sum((cap_c[m] & (pv["cap"][m] == out.cap)).astype(int) for m in models)),
+            "kind of risk": (riskF, sum((risk_c[m] & (pv["risk"][m] == out.risk)).astype(int) for m in models))}
+    for k in KEYS: fine[f"criterion {k}"] = (capF, sum((dg[m][k] == out["d_" + k.lower()]).astype(int) for m in models))
+    for q, (base, votes) in fine.items():
+        for k in (3, len(models)):
+            agr.append({"field": q, "pair": f"final code shared by at least {k} coders", "n": int(base.sum()), "agreement": round(float((votes[base] >= k).mean()), 4)})
     agr.append({"field": "specific claim", "pair": "lead coder’s specific claims seen as a capability statement by at least one other coder",
                 "n": int(spec_lead.sum()), "agreement": round(float((cap_c[small].sum(axis=1)[spec_lead] >= 1).mean()), 4)})
     A = pd.DataFrame(agr); A.to_csv(core.out("coder_agreement.csv"), index=False)
