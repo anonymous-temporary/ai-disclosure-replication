@@ -13,8 +13,7 @@ MODE = core.AI_MODE
 MKEY = {"producer": "P", "co-developer": "C", "adopter": "A"}
 ALT_MODES = {"as in the paper": MODE,
              "pharma as adopter": dict(MODE, **{"Pharma & biotech": "adopter"}),
-             "construction machinery as adopter": dict(MODE, **{"Construction machinery": "adopter"}),
-             "two groups (build, buy)": {k: ("adopter" if k in ("Retail", "Utilities", "Construction", "Construction machinery") else "producer") for k in MODE}}
+             "construction machinery as adopter": dict(MODE, **{"Construction machinery": "adopter"})}
 CLASSES = ["Specific capability claim", "Capability statement below three criteria", "AI risk only", "Other AI mention", "No AI language"]
 CRITERIA = [("d_action", "Action"), ("d_usecase", "Use case"), ("d_named", "Named product or unit"), ("d_quant", "Quantity"),
             ("d_timing", "Date or stage"), ("d_verifiable", "Verifiable detail"), ("is_C", "Three or more criteria")]
