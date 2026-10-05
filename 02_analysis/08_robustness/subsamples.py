@@ -25,10 +25,10 @@ def main():
             sw = s[s.fy <= 2022]
             if sw.L1_AI_WORKER.notna().sum() > 500:
                 c2.est(sw, "ln_C", c2.RD + ["L1_AI_WORKER"] + c2.CTRL, fe, f"[{name}] H1 AI workers -> C", show=["L1_AI_WORKER"])
-            dd = sp.copy(); dd["RxP"] = dd.L1_LOG_AI_PAT_STOCK * dd.MODE_PRODUCER; dd["RxC"] = dd.L1_LOG_AI_PAT_STOCK * dd.MODE_CODEV
-            c2.est(dd, "ln_C", c2.RD + ["L1_LOG_AI_PAT_STOCK", "MODE_PRODUCER", "MODE_CODEV", "RxP", "RxC"] + c2.CTRL, fe, f"[{name}] H2 AI patents x mode", show=["RxP", "RxC"])
-            dd = s.copy(); dd["RxM"] = dd.L1_RD_SALES0 * dd.HIGH_AIIE
-            c2.est(dd, "ln_C", c2.RD + ["HIGH_AIIE", "RxM"] + c2.CTRL, fe, f"[{name}] H2 R&D x high AI exposure", show=["RxM"])
+            for smp_, res_, lab_ in ((s, "L1_RD_SALES0", "R&D"), (sp, "L1_LOG_AI_PAT_STOCK", "AI patents"), (sw, "L1_AI_WORKER", "AI workers")):
+                if smp_[res_].notna().sum() <= 500: continue
+                dd = smp_.copy(); dd["RxP"] = dd[res_] * dd.MODE_PRODUCER; dd["RxC"] = dd[res_] * dd.MODE_CODEV
+                c2.est(dd, "ln_C", list(dict.fromkeys(c2.RD + [res_, "MODE_PRODUCER", "MODE_CODEV", "RxP", "RxC"] + c2.CTRL)), fe, f"[{name}] H2 {lab_} x mode", show=["RxP", "RxC"])
             dd = s.copy(); dd["RxL"] = dd.L1_RD_SALES0 * dd.IND_LIT_RATE
             c2.est(dd, "ln_C", c2.RD + ["IND_LIT_RATE", "RxL"] + c2.CTRL, fe, f"[{name}] H3a R&D x industry suit rate", show=["RxL"])
             dd = sp.copy(); dd["RxL"] = dd.L1_LOG_AI_PAT_STOCK * dd.IND_LIT_RATE

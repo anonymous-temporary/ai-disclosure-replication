@@ -26,7 +26,6 @@ The code in this repository builds the study’s data from public and licensed s
 | `kpss/` | `KPSS_2025.zip` | Kogan, Papanikolaou, Seru and Stoffman (2017), data extended through 2025 (https://github.com/KPSS2017/Technological-Innovation-Resource-Allocation-and-Growth-Extended-Data) | public | download |
 | `firm_ai_measures/discern2/` | `output_files/csv_files/permno_gvkey.csv`, `output_files/csv_files/discern_pat_grant_1980_2021.csv` | DISCERN 2 (Arora, Belenzon and Sheer, 2021), https://zenodo.org/records/13153196 | public | `x05`, then extract the zip in place |
 | `firm_ai_measures/hoberg_phillips/` | `tnic3_data.zip` | Hoberg and Phillips TNIC-3 industries (https://hobergphillips.tuck.dartmouth.edu) | public | `x05` |
-| `ai_exposure_sector/aioe_felten/` | `AIOE-main.zip` | Felten, Raj and Seamans (2021), AI industry exposure (https://github.com/AIOE-Data/AIOE) | public | `x05` |
 | `babina_jfe2024/` | `replication_package/data/ai_firm_map_2021.dta` | Babina, Fedyk, He and Hodson (2024), replication package (https://data.mendeley.com/datasets/s26kxvspn7/3) | public | download; extract and rename the top folder of the package to `replication_package` |
 
 The study used the versions of these files available in September 2026; the public files were downloaded on 17 September 2026, and later releases may differ slightly. The SEC scripts send the User-Agent that the SEC fair-access policy requires (https://www.sec.gov/os/accessing-edgar-data): set the environment variable `SEC_USER_AGENT` to a name and a contact e-mail address. `x08` reads the WRDS user name from `WRDS_USERNAME`. Compustat, CRSP and Audit Analytics data are licensed and cannot be redistributed, so the firm-year panel, which joins them to the disclosure measures, is not included.
@@ -41,7 +40,7 @@ The study used the versions of these files available in September 2026; the publ
 6. `02_analysis/05_litigation_exposure/b2_litigation.py`.
 7. `02_analysis/06_panel_assembly/c1_panel.py`.
 8. `02_analysis/07_hypothesis_tests_and_sector_moderation/analyze.py`: the estimates of the main tables and figures.
-9. `02_analysis/08_robustness/`: `peer_suit_rate.py`, `rd_measures.py`, `sector_inference.py` (the key estimates under firm, two-way and sector clustering, and the wild cluster bootstrap by sector), `subsamples.py` and `supplementary_tests.py`, in any order after step 8.
+9. `02_analysis/08_robustness/`: `peer_suit_rate.py`, `rd_measures.py`, `sector_inference.py` (the key estimates under firm, two-way and sector clustering, and the wild cluster bootstrap by sector) and `subsamples.py`, in any order after step 8.
 
 ## Derived data in `data/`
 

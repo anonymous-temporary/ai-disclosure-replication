@@ -1,10 +1,8 @@
 import sys as _sys; from pathlib import Path as _Path; _sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "_shared"))
-import io, zipfile
 import numpy as np
 import pandas as pd
 import core
 
-INTERNAL = {"Software & IT services", "Computers & chips", "Aerospace & defense", "Auto manufacturing", "Pharma & biotech"}
 
 def main():
     F = pd.read_csv(core.out("filings.csv"))[["adsh", "cik", "fy", "name", "industry", "sic", "filed", "n_words", "segmented", "n_ai_terms"]]
@@ -28,15 +26,8 @@ def main():
 
     m = m.merge(pd.read_csv(core.out("litigation_firm_year.csv")), on="adsh", how="left")
 
-    z = zipfile.ZipFile(core.RAW / "ai_exposure_sector" / "aioe_felten" / "AIOE-main.zip")
-    aiie = pd.read_excel(io.BytesIO(z.read("AIOE-main/AIOE_DataAppendix.xlsx")), sheet_name="Appendix B")
-    aiie["naics4"] = aiie.NAICS.astype(str).str[:4]
-    m["naics4"] = m.naics.astype("string").str[:4]
-    m = m.merge(aiie.groupby("naics4").AIIE.mean().reset_index(), on="naics4", how="left")
-    m["INTERNAL_DEV"] = m.industry.isin(INTERNAL).astype(int)
     m["AI_MODE"] = m.industry.map(core.AI_MODE)
     m["MODE_PRODUCER"] = (m.AI_MODE == "producer").astype(int); m["MODE_CODEV"] = (m.AI_MODE == "co-developer").astype(int)
-    m["HIGH_AIIE"] = (m.AIIE > m.AIIE.median()).astype(int).where(m.AIIE.notna())
 
     m["LOG_WORDS"] = np.log(m.n_words.where(m.n_words > 0))
     m["is_operating"] = (((m.AT.fillna(0) >= core.MIN_ASSETS) | (m.REV.fillna(0) >= core.MIN_ASSETS)) & (m.n_words >= core.MIN_WORDS)).astype(int)
@@ -48,7 +39,7 @@ def main():
 
     key = ["AI_ANY", "C", "G", "F", "L1_RD_SALES0", "L1_RD_MISSING", "L1_RD_STOCK_AT_w", "L1_RD_MKTCAP_w", "L1_LOG_PAT_STOCK",
            "L1_LOG_AI_PAT_STOCK", "L1_AI_WORKER", "PRIOR_SUIT", "IND_LIT_RATE", "REV_GROWTH_1_w", "REV_GROWTH_2_w", "REV_GROWTH_3_w",
-           "D_OP_MARGIN_1_w", "AIIE", "L1_SIZE", "L1_LEV_w", "L1_CASH_AT_w", "L1_CAPEX_AT_w", "L1_ROA_w"]
+           "D_OP_MARGIN_1_w", "L1_SIZE", "L1_LEV_w", "L1_CASH_AT_w", "L1_CAPEX_AT_w", "L1_ROA_w"]
     key = [k for k in key if k in m]
     op = m[m.is_operating == 1]
     cov = pd.DataFrame({"all": m[key].notna().mean().round(3), "operating": op[key].notna().mean().round(3)})

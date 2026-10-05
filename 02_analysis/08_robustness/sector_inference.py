@@ -12,17 +12,19 @@ warnings.filterwarnings("ignore")
 RES = {"L1_RD_SALES0": "R&D / revenue", "L1_LOG_AI_PAT_STOCK": "log AI patent stock", "L1_AI_WORKER": "AI-worker share"}
 WEBB = np.array([-np.sqrt(1.5), -1.0, -np.sqrt(.5), np.sqrt(.5), 1.0, np.sqrt(1.5)])
 RADEMACHER = np.array([-1.0, 1.0])
-MODEL_M = "H2 L1_LOG_AI_PAT_STOCK x AI_MODE"; PAT = "L1_LOG_AI_PAT_STOCK"
+PAT = "L1_LOG_AI_PAT_STOCK"
+def mode_specs(res):
+    m = f"H2 {res} x AI_MODE"
+    return [("H2", "T3", m, res, ["M_P", "M_A"], [("RxP", "M_P"), ("RxA", "M_A")], "RxP", "contrast producer minus co-developer", "producers minus co-developers"),
+            ("H2", "T3", m, res, ["M_P", "M_C"], [("RxP", "M_P"), ("RxC", "M_C")], "RxC", "contrast co-developer minus adopter", "co-developers minus adopters"),
+            ("H2", "T3", m, res, ["M_P", "M_C"], [("RxP", "M_P"), ("RxC", "M_C")], "RxP", "contrast producer minus adopter", "producers minus adopters")]
 SPECS = [("H1", "T2", "H1 L1_RD_SALES0", "L1_RD_SALES0", [], [], "L1_RD_SALES0", None, ""),
          ("H1", "T2", "H1 L1_LOG_AI_PAT_STOCK", PAT, [], [], PAT, None, ""),
          ("H1", "T2V", "H1 L1_AI_WORKER", "L1_AI_WORKER", [], [], "L1_AI_WORKER", None, ""),
-         ("H2", "T3", MODEL_M, PAT, ["M_P", "M_A"], [("RxP", "M_P"), ("RxA", "M_A")], "RxP", "contrast producer minus co-developer", "producers minus co-developers"),
-         ("H2", "T3", MODEL_M, PAT, ["M_P", "M_C"], [("RxP", "M_P"), ("RxC", "M_C")], "RxC", "contrast co-developer minus adopter", "co-developers minus adopters"),
-         ("H2", "T3", MODEL_M, PAT, ["M_P", "M_C"], [("RxP", "M_P"), ("RxC", "M_C")], "RxP", "contrast producer minus adopter", "producers minus adopters"),
-         ("H2", "T3", "H2 L1_RD_SALES0 x HIGH_AIIE", "L1_RD_SALES0", ["HIGH_AIIE"], [("RxM", "HIGH_AIIE")], "RxM", None, ""),
+         *mode_specs("L1_RD_SALES0"), *mode_specs(PAT), *mode_specs("L1_AI_WORKER"),
          ("H3", "T4", "H3 L1_RD_SALES0 baseline", "L1_RD_SALES0", ["IND_LIT_RATE"], [("RxL", "IND_LIT_RATE")], "RxL", None, ""),
          ("H3", "T4", "H3 L1_LOG_AI_PAT_STOCK baseline", PAT, ["IND_LIT_RATE"], [("RxL", "IND_LIT_RATE")], "RxL", None, "")]
-TERM_LABEL = {"RxM": "resource x sector moderator", "RxL": "resource x litigation exposure", "RxP": "resource x production mode", "RxC": "resource x production mode"}
+TERM_LABEL = {"RxL": "resource x litigation exposure", "RxP": "resource x production mode", "RxC": "resource x production mode"}
 
 
 def group_demean(codes):

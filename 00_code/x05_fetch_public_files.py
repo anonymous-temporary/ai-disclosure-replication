@@ -9,7 +9,6 @@ FILES = [
     ("firm_ai_measures/discern2", "DISCERN_2_0_0.zip",
      "https://zenodo.org/api/records/13153196/files/DISCERN%202_0_0.zip/content", "http"),
     ("firm_ai_measures/hoberg_phillips", "tnic3_data.zip", "https://hobergphillips.tuck.dartmouth.edu/idata/tnic3_data.zip", "http"),
-    ("ai_exposure_sector/aioe_felten", "AIOE-main.zip", "https://codeload.github.com/AIOE-Data/AIOE/zip/refs/heads/main", "github"),
 ]
 
 def stream(r, dest):

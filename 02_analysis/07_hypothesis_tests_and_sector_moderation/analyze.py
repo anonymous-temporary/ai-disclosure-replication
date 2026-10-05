@@ -80,11 +80,11 @@ def main():
                    "any_C": (g.C > 0).mean(), "any_G": (g.G > 0).mean(), "any_F": (g.F > 0).mean(), "mean_C": g.C.mean(),
                    "rd_rev_median": g.L1_RD_SALES0.median(), "rd_reported": 1 - g.L1_RD_MISSING.mean(),
                    "rd_positive": g.L1_RD_SALES0.dropna().gt(0).mean(), "rd_at_cap": g.L1_RD_SALES0.dropna().ge(1).mean(),
-                   "ai_pat_any": g.L1_AI_PAT_STOCK.dropna().gt(0).mean(), "ai_worker_half": g.L1_AI_WORKER.dropna().ge(.005).mean(), "high_aiie": g.HIGH_AIIE.dropna().mean(), "aiie_coverage": g.HIGH_AIIE.notna().mean(),
-                   "suit_rate_mean": g.IND_LIT_RATE.mean(), "prior_suit": g.PRIOR_SUIT.mean(), "aiie": g.AIIE.mean()})
+                   "ai_pat_any": g.L1_AI_PAT_STOCK.dropna().gt(0).mean(), "ai_worker_half": g.L1_AI_WORKER.dropna().ge(.005).mean(),
+                   "suit_rate_mean": g.IND_LIT_RATE.mean(), "prior_suit": g.PRIOR_SUIT.mean()})
     pd.DataFrame(t1).to_csv(core.out("sample_by_industry.csv"), index=False)
 
-    DVARS = ["C", "G", "F", "L1_RD_SALES0", "L1_LOG_AI_PAT_STOCK", "L1_AI_WORKER", "HIGH_AIIE", "MODE_PRODUCER", "MODE_CODEV",
+    DVARS = ["C", "G", "F", "L1_RD_SALES0", "L1_LOG_AI_PAT_STOCK", "L1_AI_WORKER", "MODE_PRODUCER", "MODE_CODEV",
              "IND_LIT_RATE"] + pe.CTRL
     dd_ = d[DVARS]
     desc = pd.DataFrame({"var": DVARS, "n": dd_.notna().sum().values, "mean": dd_.mean().values, "sd": dd_.std().values,
@@ -146,12 +146,13 @@ def main():
             r, n, f = fit(d, y, list(dict.fromkeys(pe.RD + ["L1_AI_WORKER"] + pe.CTRL)), fe); record("T2V", "H1 L1_AI_WORKER", fe, y, r, n, f, ["L1_AI_WORKER"])
 
     MROWS = []
-    pat = mode_fits(sample_for(d, "L1_LOG_AI_PAT_STOCK"), "L1_LOG_AI_PAT_STOCK", MODE, "as in the paper"); MROWS += pat
-    for q in pat:
-        ROWS.append({"table": "T3", "model": "H2 L1_LOG_AI_PAT_STOCK x AI_MODE", "fe": q["fe"], "y": "ln_C", "term": f"{q['kind']} {q['label']}", "coef": q["coef"],
-                     "se": q["se"], "t": q["t"], "p": q["p"], "n": q["n"], "firms": q["firms"], "r2_within": q["r2_within"]})
-    for res in ("L1_RD_SALES0", "L1_AI_WORKER"): MROWS += mode_fits(sample_for(d, res), res, MODE, "as in the paper")
-    for lab_, asg in list(ALT_MODES.items())[1:]: MROWS += mode_fits(sample_for(d, "L1_LOG_AI_PAT_STOCK"), "L1_LOG_AI_PAT_STOCK", asg, lab_)
+    for res in RES_ALL:
+        by_mode = mode_fits(sample_for(d, res), res, MODE, "as in the paper"); MROWS += by_mode
+        for q in by_mode:
+            ROWS.append({"table": "T3", "model": f"H2 {res} x AI_MODE", "fe": q["fe"], "y": "ln_C", "term": f"{q['kind']} {q['label']}", "coef": q["coef"],
+                         "se": q["se"], "t": q["t"], "p": q["p"], "n": q["n"], "firms": q["firms"], "r2_within": q["r2_within"]})
+    for lab_, asg in list(ALT_MODES.items())[1:]:
+        for res in RES_ALL: MROWS += mode_fits(sample_for(d, res), res, asg, lab_)
     s = sample_for(d, "L1_LOG_AI_PAT_STOCK"); s["TREND"] = s.fy - 2015; res = "L1_LOG_AI_PAT_STOCK"
     for k in core.MODES:
         s[f"M_{MKEY[k]}"] = (s.AI_MODE == k).astype(float); s[f"R_{MKEY[k]}"] = s[res] * s[f"M_{MKEY[k]}"]; s[f"RT_{MKEY[k]}"] = s[f"R_{MKEY[k]}"] * s.TREND
@@ -171,18 +172,6 @@ def main():
         z = d[["cik", v]].dropna(); wv.append({"variable": v, "within_share": (z[v] - z.groupby("cik")[v].transform("mean")).var() / z[v].var(), "firms": z.cik.nunique(), "n": len(z)})
     pd.DataFrame(wv).to_csv(core.out("within_variance.csv"), index=False)
 
-    for res, mode in (("L1_RD_SALES0", "HIGH_AIIE"),):
-        s = sample_for(d, res); s["RxM"] = s[res] * s[mode]
-        for fe in ("WITHIN", "BETWEEN"):
-            r, n, f = fit(s, "ln_C", list(dict.fromkeys(pe.RD + [res, mode, "RxM"] + pe.CTRL)), fe)
-            record("T3", f"H2 {res} x {mode}", fe, "ln_C", r, n, f, [res, "RxM"] + ([mode] if mode == "HIGH_AIIE" else []))
-            if mode == "HIGH_AIIE" and fe == "WITHIN":
-                cols = [res, "ln_C"] + [v for v in pe.RD + pe.CTRL if v != res]
-                es = s.dropna(subset=cols)
-                cov = es.groupby("industry").agg(firm_years=("adsh", "size"), with_score=("HIGH_AIIE", lambda v: v.notna().mean()),
-                                                 high_share=("HIGH_AIIE", lambda v: v.dropna().mean() if v.notna().any() else float("nan"))).reset_index()
-                cov.loc[len(cov)] = ["All", len(es), es.HIGH_AIIE.notna().mean(), es.HIGH_AIIE.dropna().mean()]
-                cov.to_csv(core.out("aiie_coverage.csv"), index=False)
 
     MEF, SUITS = [], []
     for res in RES:
