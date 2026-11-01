@@ -32,7 +32,7 @@ The study used the versions of these files available in September 2026; the publ
 
 ## Order of execution
 
-1. `00_code/`: `s01_fetch_sec_metadata.py`, `s02_build_universe.py`, `s03_download_filings.py`, `s03b_fetch_financials.py`, `s03c_fetch_financials_extra.py`, `x01_scrape_scac_cases.py`, `x04_match_scac_universe.py`, `x05_fetch_public_files.py`, `x08_fetch_wrds.py`.
+1. `00_code/`: `s01_fetch_sec_metadata.py`, `s02_build_universe.py`, `s03_download_filings.py`, `s03b_fetch_financials.py`, `s03c_fetch_financials_extra.py`, `x01_fetch_scac_cases.py`, `x04_match_scac_universe.py`, `x05_fetch_public_files.py`, `x08_fetch_wrds.py`.
 2. `02_analysis/01_ai_sentence_extraction/a1_passages.py`: candidate AI sentences from Items 1 to 7A of every 10-K.
 3. `02_analysis/02_llm_coding/a3_code_passages.py`: three of the four coders, Qwen2.5-7B, Ministral-8B and Phi-4, with 4-bit weights and greedy decoding on one CUDA GPU with 16 GB of memory (model weights from Hugging Face). The fourth coder, Claude Sonnet 5.5, coded the same sentences with the instructions in `02_analysis/02_llm_coding/coding_instructions.txt`; its replies are in `data/codes_sonnet.csv.gz`.
 4. `02_analysis/03_disclosure_measures/a4_disclosure_vars.py`: the four coders’ vote on the type of each sentence, the specificity criteria and the kind of risk from Claude Sonnet 5.5, the 74 corrections in `audit_corrections.csv`, and the measures C, G and F per 10-K.
@@ -40,7 +40,7 @@ The study used the versions of these files available in September 2026; the publ
 6. `02_analysis/05_litigation_exposure/b2_litigation.py`.
 7. `02_analysis/06_panel_assembly/c1_panel.py`.
 8. `02_analysis/07_hypothesis_tests_and_sector_moderation/analyze.py`: the estimates of the main tables and figures.
-9. `02_analysis/08_robustness/`: `peer_suit_rate.py`, `rd_measures.py`, `sector_inference.py` (the key estimates under firm, two-way and sector clustering, and the wild cluster bootstrap by sector) and `subsamples.py`, in any order after step 8.
+9. `02_analysis/08_robustness/`: `peer_suit_rate.py`, `rd_measures.py`, `sector_inference.py` (the key estimates under firm, two-way and sector clustering, and the wild cluster bootstrap by sector), `firm_sector_year.py` (firm and sector-by-fiscal-year fixed effects together) and `subsamples.py`, in any order after step 8.
 
 ## Derived data in `data/`
 
